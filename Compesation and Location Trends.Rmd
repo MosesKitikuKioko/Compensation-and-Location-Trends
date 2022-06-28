@@ -1,0 +1,423 @@
+---
+title: "Tech Space Trends in Africa: "
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    social: ["menu"]
+    source_code: "https://github.com/MosesKitikuKioko/CcHUB-Projects"
+    theme: united
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+
+#clear working space
+rm(list = ls(all = T))
+
+#set working directory 
+setwd('E:/CcHUB Workflows/R Codes/Stackoverflow Analysis')
+
+
+
+#load packages
+pkgs<-c("tidyverse","janitor","lubridate","viridis","scales","tidyquant", "openxlsx", "splitstackshape", "plotly", "lemon", "reactablefmtr", "sf","rgdal","tmap", "grid", "BAMMtools","GISTools","classInt", 'webshot','htmlwidgets', "googlesheets4", "googledrive")
+
+#feathers
+#install missing packages 
+miss_pkgs <- pkgs[!pkgs %in% installed.packages()[,1]]
+
+if(length(miss_pkgs>0)){
+  install.packages(miss_pkgs,dependencies = T) 
+}
+
+#loading the packages
+invisible(lapply(pkgs,library,character.only=T))
+
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+#read data from the local directory 
+data = openxlsx::read.xlsx("Data/Stackoverflow Cleaned Data.xlsx") %>% 
+  dplyr::mutate(year = as.Date(paste(year, 1, 1, sep = "-")))
+
+#read data from from shape files 
+africa = sf::st_read("Data/afr_g2014_2013_0/afr_g2014_2013_0.shp", quiet = TRUE, stringsAsFactors=FALSE) %>% 
+  sf::st_as_sf(geometry, geometry) %>% 
+  dplyr::mutate(geometry = st_geometry(geometry)) %>% 
+  dplyr::select(country = ADM0_NAME, geometry)
+```
+
+
+
+Salary Trends over Years {data-navmenu="Compensation Trends"}
+===============================================================================
+
+There has been a consistent downward pattern in the cumulative average salary earned by people in the tech area throughout the years, and this trend can be ascribed to the industry's rising talent supply
+
+```{r echo=FALSE, fig.height=5, fig.width=12, message=FALSE, warning=FALSE}
+#remove the objects in previous codes 
+rm(employment, employment_plot)
+
+salary  = data %>% 
+  dplyr::mutate(year = lubridate::year(year)) %>% 
+  # dplyr::select(year, gender_cal, compesation_cal) %>% 
+  # tidyr::drop_na() %>% 
+  dplyr::group_by(year) %>% 
+  dplyr::summarise(salary = median(compesation_cal, na.rm = T), 
+                   count = n())
+
+#plot the data 
+salary_plot = plotly::plot_ly(data = salary, x = ~year, y = ~salary, type = "scatter", mode ="line", name = "Salary",
+                              hovertemplate =  paste("Year:  %{x}<br>",
+                                                  "<b>%{yaxis.title.text}: %{y}<br>", 
+                                                  "<br><extra></extra>"))
+
+#change the layout of the plot 
+salary_plot = salary_plot %>% layout(title = '', 
+                               yaxis = list(title = 'Average Salary in USD'), 
+                               xaxis = list(title = ""),
+                               legend = list(orientation = "h",   # show entries horizontally
+                                             xanchor = "center",  # use center of legend as anchor
+                                             x = 0.5),
+                               barmode = 'group')
+
+
+#display the data
+salary_plot
+```
+
+Salary Difference between Genders {data-navmenu="Compensation Trends"}
+==============================================================================
+
+> Male techies earned better salaries than their female counterparts across the years
+
+```{r echo=FALSE, fig.height=5, fig.width=12, message=FALSE, warning=FALSE}
+#remove the objects in previous code 
+rm(salary, salary_plot)
+
+#gender and salary
+salary_gender  = data %>% 
+  dplyr::mutate(year = lubridate::year(year)) %>% 
+  dplyr::select(year, gender = gender_cal, compesation_cal) %>% 
+  subset(gender %in% c("Male", "Female", "Other")) %>%
+  # tidyr::drop_na()
+  dplyr::group_by(year, gender) %>% 
+  dplyr::summarise(salary = median(compesation_cal, na.rm = T)) %>% 
+  dplyr::ungroup() %>% 
+  tidyr::pivot_wider(id_cols = year, names_from = gender, values_from = salary)
+
+#plot the data 
+salary_plot = plotly::plot_ly(data = salary_gender, x = ~year, y = ~Male, type = "scatter", mode ="line", name = "Male",text = "Male",
+                              hovertemplate =  paste("<b>%{text}:<br>",
+                                                     "Year:  %{x}<br>",
+                                                     "<b>%{yaxis.title.text}: %{y}<br>", 
+                                                     "<br><extra></extra>"))
+
+salary_plot = salary_plot %>% plotly::add_trace(y = ~Female, mode = "line", name = "Female",text = "Female", 
+                                                hovertemplate =  paste("<b>%{text}</b><br><br>",
+                                                  "Year:  %{x}<br>",
+                                                  "<b>%{yaxis.title.text}: %{y}<br>", 
+                                                  "<br><extra></extra>"))
+# 
+# salary_plot = salary_plot %>% plotly::add_trace(y = ~Other, mode = "line", name = "Others",text = "Others",
+#                                                 hovertemplate =  paste("<b>%{text}</b><br><br>",
+#                                                   "Year:  %{x}<br>",
+#                                                   "<b>%{yaxis.title.text}: %{y}<br>",
+#                                                   "<br><extra></extra>"))
+#change the layout of the plot 
+salary_plot = salary_plot %>% layout(title = '', 
+                               yaxis = list(title = 'Average Salary in USD'), 
+                               xaxis = list(title = ""),
+                               legend = list(orientation = "h",   # show entries horizontally
+                                             xanchor = "center",  # use center of legend as anchor
+                                             x = 0.5),
+                               barmode = 'group')
+
+
+#display the data
+salary_plot
+```
+
+
+
+Proficient Languages used and salary {data-navmenu="Compensation Trends"}
+===================================================================================
+There is a strong relationship between the number of languages an individual is proficient in and salary they earned _(The higher the number of languages the techies work with, the higher the remuneration)_
+
+```{r}
+#remove objects from previous lines of code 
+rm(salary, salary_gender)
+
+#salary and languages learned 
+languages_salary = data %>% 
+  dplyr::select(year, number_languages, salary = compesation_cal) %>% 
+  # dplyr::mutate(number_languages = ifelse(is.na(number_languages), NA, 
+  #                            ifelse(year > 2016, number_languages+1, number_languages))) %>% 
+  dplyr::select(-year) %>% 
+  tidyr::drop_na() %>% 
+  dplyr::group_by(number_languages) %>% 
+  dplyr::summarise(count = n(), 
+                   salary = median(salary, na.rm = T)) %>% 
+  dplyr::filter(salary < 50000 & salary > 10000)
+
+#filt a regression line 
+fit <- lm(salary ~ number_languages, data = languages_salary)
+
+
+#plot the graph
+languages_salary_plot = plotly::plot_ly(data = languages_salary, 
+                                        x = ~number_languages, 
+                                        y = ~salary, 
+                                        type = "scatter", 
+                                        mode = "markers",
+                                        #marker = list(size = ~count, sizemode = 'area'),
+                                        # color = ~employment,
+                                        # text = ~employment,
+                                        hovertemplate = paste("%{yaxis.title.text}: %{y:$,.0f}<br>",
+                                                              "Proficient in <b> %{x} </b> languages<br>",
+                                                              "<extra></extra>"))
+
+
+#change the layout of the plot 
+languages_salary_plot = languages_salary_plot %>% layout(title = '', 
+                                             yaxis = list(title = 'Average Salary in USD', 
+                                                          tickformat = "%{y:$,.0f}",
+                                                          ticksuffix = "$"), 
+                                             xaxis = list(title = "Number of Programing Languages"),
+                                             jitter = 0.7,
+                                             pointpos = 0,
+                                             legend = list(orientation = "h",   # show entries horizontally
+                                             xanchor = "center",  # use center of legend as anchor
+                                             x = 0.5),
+                                             barmode = 'group')
+
+#add line 
+languages_salary_plot = languages_salary_plot %>% plotly::add_lines(x = ~number_languages, y = fitted(fit)) %>% 
+  layout(showlegend = F)
+
+
+#display the graph 
+languages_salary_plot
+
+```
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+### The regression model 
+summary(fit)
+```
+
+
+Relationship between Experience and Salary {data-navmenu="Compensation Trends"}
+========================================================================================
+The people with 26 to 30 years of experience were the highest paid tech professionals earning an average of _US$64044_, followed by 21 to 25 years group earning _US$60840_ annually
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#remove objects from previous lines of code 
+rm(languages_salary, languages_salary_plot)
+
+#experience plot
+experience = data %>% 
+  dplyr::select(year, experience = experience_group, salary = compesation_cal) %>% 
+  tidyr::drop_na() %>% 
+  dplyr::group_by(experience) %>% 
+  dplyr::summarise(salary = median(salary , na.rm = T),
+                   count = n()) %>% 
+  tidyr::drop_na() %>% 
+  dplyr::mutate(experience = factor(experience, 
+                                     levels = c("Less than 1 year", "1-5 years","6-10 years","11-15 years","16-20 years","21-25 years","26-30 years","30 or more year"),
+                                     labels = c(1,2,3,4,5,6,7,8)),
+                experience = factor(experience, 
+                                     labels = c("Less than 1 year", "1-5 years","6-10 years","11-15 years","16-20 years","21-25 years","26-30 years","30 or more year"),
+                                     levels = c(1,2,3,4,5,6,7,8)))
+
+#plot the bar graph 
+experience_graph <- plotly::plot_ly(experience, x = ~experience, y = ~salary, type = 'bar', name = 'salary',
+                                    marker = list(color = '#D85A7FFF',
+                                                  line = list(color = '#D85A7FFF', width = 1)),
+                                    hovertemplate =  paste("Year:  %{x}<br>",
+                                                           "<b>%{yaxis.title.text}: %{y:.0f}<br>", 
+                                                           "<br><extra></extra>"))
+                                                   
+
+
+#add layout
+experience_graph = experience_graph %>% layout(title = '', 
+                               yaxis = list(title = 'Average Salary in USD'), 
+                               xaxis = list(title = ""),
+                               legend = list(orientation = "h",   # show entries horizontally
+                                             xanchor = "center",  # use center of legend as anchor
+                                             x = 0.5),
+                               barmode = 'group')
+
+
+
+#display the graph 
+experience_graph
+```
+
+# Location Trends {.storyboard}
+
+
+### **General Tech Trends in  Africa**
+
+Based on stack overflow data, the map depicts tech trends in Africa over the last five years. The number of survey participants was quantile classified, with South Africa leading in total numbers, followed by Nigeria and Egypt in the top tier, and Comoros, Guinea-Bissau, and Sao Tome and Principe in the bottom three countries, respectively
+
+
+```{r echo=FALSE, fig.height=8, fig.width=12, message=FALSE, warning=FALSE}
+#remove objects from previous codes 
+rm(experience, experience_graph, salary_plot)
+
+
+#countries 
+country = data %>% 
+  dplyr::mutate(year = lubridate::year(year)) %>% 
+  # dplyr::filter(!is.na(languages) | !is.na(frameworks) | !is.na(databases)) %>% 
+  dplyr::select(year, region, country) %>% 
+  dplyr::filter(!is.na(country)) %>% 
+  dplyr::group_by(year, country) %>% 
+  dplyr::summarise(count = n()) %>%
+  dplyr::mutate(percent = count/sum(count)) %>% 
+  dplyr::ungroup()%>% 
+  dplyr::arrange_at(c('year', "country", "count")) %>% 
+  dplyr::left_join(openxlsx::read.xlsx("Data/country and regions.xlsx"), by = "country") %>% 
+  # sf::st_as_sf(geometry, geometry) %>% 
+  dplyr::mutate(count = as.numeric(count))
+
+
+
+country_map = africa %>% 
+  dplyr::left_join(country %>% 
+                     dplyr::group_by(country) %>% 
+                     dplyr::summarise(count = round(mean(count, na.rm = T),2), 
+                                      percent = round(mean(percent, na.rm = T),2)) %>% 
+                     dplyr::ungroup() %>% 
+                     dplyr::mutate(percent = count/sum(count),
+                                   tech_classification = ifelse(count <= 5, "Low Tech",
+                                                                ifelse(count > 5 & count < 50, "Medium Tech", "High Tech"))), by = "country") %>% 
+  tidyr::drop_na()
+
+
+#classification 
+classification <-classIntervals(country_map$count,n=5,style ="quantile")
+
+#quantile class intervals
+breaks = round(classification$brks)
+
+#add interactivity 
+tmap_mode("view")
+
+#plot the map
+tm_shape(country_map) +
+  tm_polygons("count",   title = "Tech Trends in Africa", palette = "Greens", style ="quantile", breaks = breaks) +
+  tm_layout(legend.title.size = 0.5, legend.outside =  TRUE, frame = FALSE) +
+  tm_text("country",size = 0.7)
+
+```
+
+### **Africa Tech Trends per Year:**  An increase trend for people joining the tech space are observed across majority of the Africa countries from 2016 to 2021 
+
+
+```{r echo=FALSE, fig.height=8, fig.show='animate', fig.width=12, message=FALSE, warning=FALSE, dev='jpeg', ffmpeg.format='gif'}
+#\n The graph indicates transition in use of technology platforms for 51 African countries between year 2016 and 2021.
+
+#remove interactivity 
+tmap_mode("plot")
+
+#set options to false ffmpeg.format='gif', animation.hook="gifski"
+tmap::tmap_options(show.messages = F, show.warnings = F)
+
+
+#trial 
+africa_map = africa %>% 
+  dplyr::left_join(country, by = "country") %>% 
+  tidyr::drop_na()
+
+
+
+
+
+#plot the graph
+africa_plot = tm_shape(africa_map) +
+  tm_polygons(
+    col = "count",
+    style = "quantile",
+    breaks = breaks,
+    title = "Tech Trends in Africa",
+    pal = viridis(10, direction = -1)
+    ) +
+  tm_facets(along = "year") +
+  tm_layout(legend.position = c("right", "top"),legend.title.size = 0.5, legend.outside =  TRUE, frame = FALSE) +
+  tm_text("country",size = 0.7)
+
+
+
+# # #Animate
+# africa_plot = tmap_animation(africa_plot,
+#                 # filename = "tech_adoption.gif",
+#                 delay = 100, width = 2400, height = 1200, outer.margins = 0)
+
+#view 
+africa_plot %>% animation_opts(2000,transition= 600)
+
+
+#Display all plots
+# walk(africa_plot, print)
+
+# ![](tech_adoption.gif)
+# #mapping the word cloud
+# saveWidget(africa_plot, 'africa_plot.html', selfcontained = F)
+# webshot('africa_plot.html', 'africa_plot.gif', vwidth=700,vheight=500, delay = 5)
+```
+
+
+### **Africa Regional Trends:** \n North African sub-region has the largest number people in tech space, followed up by Southern Africa, Western Africa, Eastern Africa and finally middle Africa 
+
+
+```{r echo=FALSE, fig.height=4, fig.width=12, message=FALSE, warning=FALSE}
+#subregions 
+subregions = country %>% 
+  dplyr::ungroup() %>% 
+  dplyr::select(year, region, count, percent) %>% 
+  dplyr::group_by(region, year) %>% 
+  dplyr::summarise(Count = sum(as.numeric(count), na.rm = T)) %>% 
+  dplyr::mutate(percent = Count/sum(Count))
+
+
+# #plot the graph
+# country_plot = plotly::plot_ly(data = subregions, x = ~year, y =~region, z = ~Count, type = "heatmap")
+# 
+# #display the map
+# country_plot
+
+
+#African subregions trends 
+subregions_plot = subregions %>% 
+  #visualization 
+  ggplot(aes(year, region,  fill = Count))+
+  geom_tile(show.legend = FALSE) +
+  scale_fill_gradient2(low = muted('#E94B3CFF'), high = muted("#006B38FF"), na.value = 'grey30')+
+  scale_x_continuous(breaks = seq(2016, 2021, by = 1))+
+  geom_text(aes(label = paste(Count,"(",scales::percent(percent, accuracy = 0.1),")", sep = "")),size = 3.5, color = 'black')+
+  labs(caption = 'Stackoverflow @2016 to 2021')+
+  theme_minimal(base_size = 15, base_family = 'serif')+
+  theme(plot.title = element_blank(),#element_text(hjust = 0.5, face = 'bold', color = '#2D2926FF', size = 14),
+        plot.caption = element_text(color = 'grey30', size = 8, face = "italic"),
+        plot.subtitle = element_blank(),#element_text(face = 'italic',size = 12, hjust = 0.5, color = "#616247FF"),
+        legend.position = 'bottom',
+        legend.title = element_blank(),
+        axis.text.y = element_text(size = 12),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank())
+
+
+#convert to plotly map
+plotly::ggplotly(subregions_plot)
+
+```
+
