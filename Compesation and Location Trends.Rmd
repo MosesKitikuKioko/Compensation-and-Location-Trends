@@ -5,7 +5,7 @@ output:
     orientation: columns
     vertical_layout: fill
     social: ["menu"]
-    source_code: "https://github.com/MosesKitikuKioko/CcHUB-Projects"
+    source_code: "https://github.com/MosesKitikuKioko/Compensation-and-Location-Trends"
     theme: united
 ---
 
@@ -145,7 +145,7 @@ salary_plot
 
 
 
-Proficient Languages used and salary {data-navmenu="Compensation Trends"}
+Number of Languages used and salary {data-navmenu="Compensation Trends"}
 ===================================================================================
 There is a strong relationship between the number of languages an individual is proficient in and salary they earned _(The higher the number of languages the techies work with, the higher the remuneration)_
 
